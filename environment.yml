@@ -1,0 +1,13 @@
+name: chess
+channels:
+  - defaults
+dependencies:
+  - python=3.12
+  - numpy
+  - jupyterlab
+  - pandas
+  - matplotlib
+  - pip:
+    - chess
+    - opencv-python
+    - PyYAML

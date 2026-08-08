@@ -1,0 +1,37 @@
+{
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    }
+  },
+  "ruff.nativeServer": "on",
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+  "files.eol": "\n",
+
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.expand": false,
+  "explorer.fileNesting.patterns": {
+    "pyproject.toml": "ruff.toml, environment.yml, requirements*.txt, .pre-commit-config.yaml, .gitignore, .gitattributes, .python-version, setup.py, setup.cfg, MANIFEST.in, uv.lock",
+    "README.md": "LICENSE, LICENSE.*, CHANGELOG.md, CITATION.cff",
+    "config.yaml": "config.*.yaml, *.local.yaml"
+  },
+
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.ruff_cache": true,
+    "**/.pytest_cache": true,
+    "**/.mypy_cache": true,
+    "**/*.egg-info": true,
+    "stockfish": true
+  },
+
+  "search.exclude": {
+    "**/data": true,
+    "**/models": true,
+    "**/runs": true
+  }
+}

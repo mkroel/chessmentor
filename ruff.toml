@@ -1,0 +1,51 @@
+# pydocstyle, Teile von pylint und Black.
+#   python -m ruff check .          -> lint
+#   python -m ruff check . --fix    -> autofix, wo eindeutig
+#   python -m ruff format .         -> formatieren
+
+line-length = 88
+target-version = "py312"   # = Python der Conda-Env "chess"
+extend-exclude = ["stockfish", "data", "models", "runs"]
+
+[lint]
+select = [
+    "F",    # pyflakes        - ungenutzte Imports/Variablen, echte Fehler
+    "E",    # pycodestyle     - PEP 8
+    "W",    # pycodestyle warnings
+    "I",    # isort           - Importreihenfolge
+    "N",    # pep8-naming
+    "UP",   # pyupgrade       - veraltete Syntax modernisieren
+    "B",    # bugbear         - Bugmuster (mutable defaults, Schleifenfallen)
+    "SIM",  # simplify
+    "C4",   # comprehensions
+    "PTH",  # pathlib statt os.path/open(str)
+    "NPY",  # numpy-spezifisch (veraltete APIs, np.random.seed etc.)
+    "RUF",  # ruff-eigene Regeln
+    "D",    # pydocstyle      - Docstring-FORMAT (siehe convention unten)
+]
+
+ignore = [
+    "E501",     # Zeilenlänge: macht der Formatter, Linter soll nicht meckern
+    "D100",     # Docstring fehlt: Modul     ) alle vier bewusst aus, solange
+    "D101",     # Docstring fehlt: Klasse    ) das Projekt noch wächst.
+    "D103",     # Docstring fehlt: Funktion  ) Format wird erzwungen,
+    "D104",     # Docstring fehlt: Package   ) Existenz nicht.
+]
+
+[lint.pydocstyle]
+convention = "google"
+
+[lint.pep8-naming]
+extend-ignore-names = ["H", "H_inv", "K", "R", "T", "P"]
+
+[lint.isort]
+known-first-party = ["chessmentor"]
+
+[lint.flake8-bugbear]
+extend-immutable-calls = []
+
+[format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+docstring-code-format = true
