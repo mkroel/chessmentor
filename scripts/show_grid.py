@@ -5,8 +5,8 @@ import numpy as np
 import yaml
 
 from chessmentor.board import grid_points, homography
-from chessmentor.camera import configure_camera
-from chessmentor.corners import pick_corners
+from chessmentor.camera import configure_camera, get_frame
+from chessmentor.corners import get_corners
 
 GRID_COLOR = (0, 255, 0)
 
@@ -28,15 +28,21 @@ def main():
     print("Config loaded")
 
     cap = cv.VideoCapture(config["camera"]["index"], cv.CAP_DSHOW)
-    configure_camera(cap, config)
-    corners, frame = pick_corners(cap, config)
+    try:
+        configure_camera(cap, config)
+        corners = get_corners(cap, config, override=True)
 
-    _, H_inv = homography(corners)
-    draw_grid(frame, grid_points(H_inv))
+        frame = get_frame(cap)
+        _, H_inv = homography(corners)
+        draw_grid(frame, grid_points(H_inv))
 
-    cv.imshow("Grid", frame)
-    cv.waitKey(0)
-    cv.destroyAllWindows()
+        cv.imshow("Grid", frame)
+        cv.waitKey(0)
+        cv.destroyAllWindows()
+    except Exception as e:
+        raise RuntimeError(f"Error: {e}") from e
+    finally:
+        cap.release()
 
 
 if __name__ == "__main__":

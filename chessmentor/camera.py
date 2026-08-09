@@ -5,20 +5,25 @@ def configure_camera(cap: cv.VideoCapture, config: dict):
     if not cap.isOpened():
         raise RuntimeError("Failed to open camera")
 
-    cap.set(cv.CAP_PROP_AUTOFOCUS, config["camera"]["autofocus"])
-    cap.set(cv.CAP_PROP_FOCUS, config["camera"]["focus"])
+    cam = config["camera"]
 
-    cap.set(cv.CAP_PROP_AUTO_EXPOSURE, config["camera"]["auto_exposure"])
-    cap.set(cv.CAP_PROP_EXPOSURE, config["camera"]["exposure"])
+    cap.set(cv.CAP_PROP_FRAME_WIDTH, cam["frame_width"])
+    cap.set(cv.CAP_PROP_FRAME_HEIGHT, cam["frame_height"])
 
-    cap.set(cv.CAP_PROP_AUTO_WB, config["camera"]["auto_wb"])
-    cap.set(cv.CAP_PROP_WB_TEMPERATURE, config["camera"]["wb_temperature"])
+    cap.set(cv.CAP_PROP_AUTOFOCUS, cam["autofocus"])
+    cap.set(cv.CAP_PROP_FOCUS, cam["focus"])
 
-    cap.set(cv.CAP_PROP_FRAME_WIDTH, config["camera"]["frame_width"])
-    cap.set(cv.CAP_PROP_FRAME_HEIGHT, config["camera"]["frame_height"])
+    cap.set(cv.CAP_PROP_AUTO_EXPOSURE, cam["auto_exposure"])
+    cap.set(cv.CAP_PROP_EXPOSURE, cam["exposure"])
 
-    cap.set(cv.CAP_PROP_GAIN, config["camera"]["gain"])
+    cap.set(cv.CAP_PROP_AUTO_WB, cam["auto_wb"])
+    cap.set(cv.CAP_PROP_WB_TEMPERATURE, cam["wb_temperature"])
 
-    # discard first frames
-    for _ in range(5):
-        cap.read()
+    cap.set(cv.CAP_PROP_GAIN, cam["gain"])
+
+
+def get_frame(cap: cv.VideoCapture):
+    ret, frame = cap.read()
+    if not ret:
+        raise RuntimeError("Failed to read from camera")
+    return frame

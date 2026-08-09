@@ -6,11 +6,14 @@ corners_file: calib/corners.json
 camera:
   index: 0
   frame_width: 1280
-  frame_height: 720
+  frame_height: 960
   autofocus: 0
   focus: 30          # 0-255, Schritte von 5
-  auto_exposure: 0.25   # 0.25 = manuell, 0.75 = auto (DSHOW)
-  exposure: -6          # negativ, -4 heller / -8 dunkler
-  auto_wb: 0
+  auto_exposure: 0.75   # 0.25 = manuell, 0.75 = auto (DSHOW)
+  exposure: -4          # negativ, -4 heller / -8 dunkler
+  auto_wb: 1
   wb_temperature: 4000  # 2800 Glühlampe, 4000 Mischlicht, 6500 Tageslicht
   gain: 0
+
+# Corner detection parameters
+corner_threshold: 10  # pixels
