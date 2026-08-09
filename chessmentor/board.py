@@ -16,3 +16,18 @@ def grid_points(H_inv):
         [[[col * SQUARE_PX, row * SQUARE_PX]] for row in range(9) for col in range(9)]
     )
     return cv.perspectiveTransform(grid, H_inv).reshape(9, 9, 2)
+
+
+def field_to_sq(fieldname):
+    file = ["a", "b", "c", "d", "e", "f", "g", "h"].index(fieldname[0])
+    rank = 8 - int(fieldname[1])
+
+    x = file * SQUARE_PX + SQUARE_PX / 2
+    y = rank * SQUARE_PX + SQUARE_PX / 2
+
+    return (x, y)
+
+
+def field_to_px(fieldname, H_inv):
+    center = field_to_sq(fieldname)
+    return cv.perspectiveTransform(np.float32([[center]]), H_inv).reshape(2)
