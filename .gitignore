@@ -9,6 +9,7 @@ models/
 *.egg-info/
 build/
 dist/
+!saved_runs/*/*.pt
 
 # Tooling
 .ruff_cache/
