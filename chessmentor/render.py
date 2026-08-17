@@ -48,7 +48,7 @@ def _text_centered(frame, text, center, color, scale, thickness):
 
 
 def draw_position(frame, H_inv, board, scale=0.9, thickness=2):
-    # weiss = weisse Schrift, schwarz = rote Schrift
+    # letter encodes the type, text color encodes the side
     for square, piece in board.piece_map().items():
         center = field_to_px(chess.square_name(square), H_inv)
         color = WHITE_PIECE_COLOR if piece.color == chess.WHITE else BLACK_PIECE_COLOR

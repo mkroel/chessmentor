@@ -31,3 +31,23 @@ def field_to_sq(fieldname):
 def field_to_px(fieldname, H_inv):
     center = field_to_sq(fieldname)
     return cv.perspectiveTransform(np.float32([[center]]), H_inv).reshape(2)
+
+
+def field_corners(fieldname):
+    file = ["a", "b", "c", "d", "e", "f", "g", "h"].index(fieldname[0])
+    rank = 8 - int(fieldname[1])
+
+    left = file * SQUARE_PX
+    top = rank * SQUARE_PX
+
+    return [
+        (left, top),
+        (left + SQUARE_PX, top),
+        (left + SQUARE_PX, top + SQUARE_PX),
+        (left, top + SQUARE_PX),
+    ]
+
+
+def field_corners_px(fieldname, H_inv):
+    pts = np.float32(field_corners(fieldname)).reshape(-1, 1, 2)
+    return cv.perspectiveTransform(pts, H_inv).reshape(-1, 2)
