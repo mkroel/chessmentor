@@ -25,11 +25,15 @@ select = [
 ]
 
 ignore = [
-    "E501",     # Zeilenlänge: macht der Formatter, Linter soll nicht meckern
-    "D100",     # Docstring fehlt: Modul     ) alle vier bewusst aus, solange
-    "D101",     # Docstring fehlt: Klasse    ) das Projekt noch wächst.
-    "D103",     # Docstring fehlt: Funktion  ) Format wird erzwungen,
-    "D104",     # Docstring fehlt: Package   ) Existenz nicht.
+    "E501",     # Zeilenlänge
+    "D100",     # Modul
+    "D101",     # Klasse
+    "D102",     # Methode
+    "D103",     # Funktion
+    "D104",     # Package
+    "D105",     # Magic Method
+    "D106",     # verschachtelte Klasse
+    "D107",     # __init__
 ]
 
 [lint.pydocstyle]
