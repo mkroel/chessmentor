@@ -114,6 +114,7 @@ def plan(sources):
             f"  ({len(train)} train / {len(val)} val)"
             + (f"   davon {unchecked} ungeprueft" if unchecked else "")
         )
+    return tasks
 
 
 def convert(sources):
