@@ -5,10 +5,8 @@ from pathlib import Path
 import cv2 as cv
 import numpy as np
 
+from chessmentor.board import BOARD_PX, SQUARE_PX
 from chessmentor.camera import get_frame
-
-SQ_SIZE = 100
-B_SIZE = SQ_SIZE * 8
 
 
 def pick_corners(cap: cv.VideoCapture, config: dict):
@@ -114,8 +112,8 @@ def find_corners(frame, config: dict):
     ideal = []
     for row in range(rows):
         for col in range(cols):
-            board_x = (col + 1) * SQ_SIZE
-            board_y = (row + 1) * SQ_SIZE
+            board_x = (col + 1) * SQUARE_PX
+            board_y = (row + 1) * SQUARE_PX
             ideal.append([board_x, board_y])
 
     ideal = np.array(ideal, dtype=np.float32)
@@ -131,9 +129,9 @@ def find_corners(frame, config: dict):
     outer_2d = np.float32(
         [
             [0, 0],
-            [B_SIZE, 0],
-            [B_SIZE, B_SIZE],
-            [0, B_SIZE],
+            [BOARD_PX, 0],
+            [BOARD_PX, BOARD_PX],
+            [0, BOARD_PX],
         ]
     )
     outer = outer_2d.reshape(4, 1, 2)

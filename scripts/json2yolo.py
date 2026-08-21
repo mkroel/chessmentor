@@ -1,7 +1,10 @@
-# Converts the capture manifest (image + FEN + corners) into a YOLO dataset.
+# Converts capture manifests (image + FEN + corners) into a YOLO dataset.
+# Several source directories can be combined; each is split separately so
+# both end up represented in train and val.
 #
-#   python scripts/json2yolo.py            convert
-#   python scripts/json2yolo.py --check    draw generated boxes back onto images
+#   python scripts/json2yolo.py                          data/capture
+#   python scripts/json2yolo.py data/capture data/game    combined
+#   python scripts/json2yolo.py --check                   draw boxes back
 
 import json
 import random
@@ -15,15 +18,15 @@ import numpy as np
 import yaml
 
 from chessmentor.board import field_corners_px, field_to_px, homography
+from chessmentor.pieces import NAMES, class_id
 
-SOURCE_PATH = Path("data/capture")
+DEFAULT_SOURCES = [Path("data/capture")]
 DEST_PATH = Path("data/yolo")
-MANIFEST = SOURCE_PATH / "labels.jsonl"
 
 VAL_RATIO = 0.2
 SEED = 42
 
-REL_WIDTH = 0.8
+REL_WIDTH = 0.9
 FOOT_DROP = 0.8
 
 REL_HEIGHT = {
@@ -37,26 +40,6 @@ REL_HEIGHT = {
 
 MIN_BOX = 0.005
 
-NAMES = [
-    "white-pawn",
-    "white-knight",
-    "white-bishop",
-    "white-rook",
-    "white-queen",
-    "white-king",
-    "black-pawn",
-    "black-knight",
-    "black-bishop",
-    "black-rook",
-    "black-queen",
-    "black-king",
-]
-
-
-def class_id(piece):
-    # PAWN=1..KING=6 -> 0..5 white, 6..11 black.
-    return (piece.piece_type - 1) + (0 if piece.color else 6)
-
 
 def _clamp(v):
     return min(max(v, 0.0), 1.0)
@@ -66,11 +49,16 @@ def box_for_piece(fieldname, piece, H_inv, img_w, img_h):
     center = field_to_px(fieldname, H_inv)
 
     quad = field_corners_px(fieldname, H_inv)
-    field_px = float(
-        np.mean([np.linalg.norm(quad[i] - quad[(i + 1) % 4]) for i in range(4)])
-    )
+    side_lengths = []
+    for i in range(4):
+        a = quad[i]
+        b = quad[(i + 1) % 4]
+        side_lengths.append(np.linalg.norm(a - b))
+    field_px = float(np.mean(side_lengths))
 
-    near = quad[np.argsort(quad[:, 1])[-2:]].mean(axis=0)
+    # take the two lowest corner points and calculate the avg
+    idx = quad[:, 1].argsort()[-2:]
+    near = quad[idx].mean(axis=0)
     foot = center + FOOT_DROP * (near - center)
 
     width = REL_WIDTH * field_px
@@ -87,9 +75,19 @@ def box_for_piece(fieldname, piece, H_inv, img_w, img_h):
     return (x1 + x2) / 2, (y1 + y2) / 2, x2 - x1, y2 - y1
 
 
-def usable_rows():
-    rows = [json.loads(line) for line in MANIFEST.open(encoding="utf-8")]
-    return len(rows), [r for r in rows if r.get("usable") is True]
+def load_rows(source):
+    manifest = source / "labels.jsonl"
+    rows = [json.loads(line) for line in manifest.open(encoding="utf-8")]
+    keep = [r for r in rows if r.get("usable") is not False]
+    unchecked = sum(1 for r in keep if "usable" not in r)
+    return rows, keep, unchecked
+
+
+def split(rows, ratio, seed):
+    shuffled = list(rows)
+    random.Random(seed).shuffle(shuffled)
+    cut = round((1 - ratio) * len(shuffled))
+    return shuffled[:cut], shuffled[cut:]
 
 
 def write_data_yaml():
@@ -104,18 +102,30 @@ def write_data_yaml():
     )
 
 
-def convert():
+def plan(sources):
+    tasks = []
+    for source in sources:
+        all_rows, keep, unchecked = load_rows(source)
+        train, val = split(keep, VAL_RATIO, SEED)
+        for part, group in (("train", train), ("val", val)):
+            tasks += [(source, row, part) for row in group]
+        print(
+            f"{source!s:20} {len(all_rows):4} Zeilen, {len(keep):4} verwendet"
+            f"  ({len(train)} train / {len(val)} val)"
+            + (f"   davon {unchecked} ungeprueft" if unchecked else "")
+        )
+
+
+def convert(sources):
     for sub in ("images/train", "images/val", "labels/train", "labels/val"):
         (DEST_PATH / sub).mkdir(parents=True, exist_ok=True)
 
-    total, rows = usable_rows()
-    random.Random(SEED).shuffle(rows)
-    cut = round((1 - VAL_RATIO) * len(rows))
+    tasks = plan(sources)
 
     missing, boxes, dropped = 0, 0, 0
-    for i, row in enumerate(rows):
-        part = "train" if i < cut else "val"
-        src = SOURCE_PATH / row["image"]
+    for source, row, part in tasks:
+        name = f"{source.name}_{row['image']}"
+        src = source / row["image"]
         img = cv.imread(str(src))
         if img is None:
             missing += 1
@@ -136,14 +146,18 @@ def convert():
             lines.append(f"{class_id(piece)} " + " ".join(f"{v:.6f}" for v in box))
 
         boxes += len(lines)
-        shutil.copy(src, DEST_PATH / "images" / part / row["image"])
-        label = DEST_PATH / "labels" / part / f"{Path(row['image']).stem}.txt"
+        shutil.copy(src, DEST_PATH / "images" / part / name)
+        label = DEST_PATH / "labels" / part / f"{Path(name).stem}.txt"
         label.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     write_data_yaml()
 
-    print(f"Manifest   : {total} Zeilen, davon {len(rows)} usable")
-    print(f"Split      : {cut} train / {len(rows) - cut} val")
+    n_train = sum(1 for _, _, part in tasks if part == "train")
+    print("")
+    print(
+        f"Gesamt     : {len(tasks)} Bilder "
+        f"({n_train} train / {len(tasks) - n_train} val)"
+    )
     print(f"Boxen      : {boxes}")
     if dropped:
         print(f"verworfen  : {dropped} (zu klein nach dem Beschneiden)")
@@ -191,7 +205,8 @@ def check(count=5):
 
 
 if __name__ == "__main__":
+    dirs = [Path(a) for a in sys.argv[1:] if not a.startswith("--")]
     if "--check" in sys.argv:
         check()
     else:
-        convert()
+        convert(dirs or DEFAULT_SOURCES)
