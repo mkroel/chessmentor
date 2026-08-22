@@ -62,6 +62,31 @@ def draw_grid(frame, img_grid):
         cv.line(frame, _pt(img_grid[k][0]), _pt(img_grid[k][8]), GRID_COLOR, 1)
         cv.line(frame, _pt(img_grid[0][k]), _pt(img_grid[8][k]), GRID_COLOR, 1)
 
+        # draw the square labels
+        if k < 8:
+            # files
+            cv.putText(
+                frame,
+                chr(ord("a") + k),
+                _pt(img_grid[8][k] + np.array([SQUARE_PX / 2, 20])),
+                cv.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                GRID_COLOR,
+                1,
+                cv.LINE_AA,
+            )
+            # ranks
+            cv.putText(
+                frame,
+                str(8 - k),
+                _pt(img_grid[k][0] + np.array([-20, SQUARE_PX / 2])),
+                cv.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                GRID_COLOR,
+                1,
+                cv.LINE_AA,
+            )
+
 
 def draw_arrow(frame, H_inv, from_sq: str, to_sq: str, color=(0, 0, 255), thickness=2):
     from_px = field_to_px(from_sq, H_inv)
