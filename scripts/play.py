@@ -1,10 +1,8 @@
 # imports
-import os
 import webbrowser
 from pathlib import Path
 
 import chess
-import chess.svg
 import cv2 as cv
 import numpy as np
 import yaml
@@ -14,7 +12,7 @@ from chessmentor.camera import configure_camera
 from chessmentor.corners import get_corners
 from chessmentor.engine import get_best_move
 from chessmentor.game import diff_score, filter_moves_by_inventory
-from chessmentor.render import draw_arrow, draw_grid, draw_position
+from chessmentor.render import draw_arrow, draw_grid, draw_position, update_browser_view
 from chessmentor.vision import board_view, framing_check, get_diff, is_still
 
 # load config
@@ -87,6 +85,7 @@ try:
     # game loop
     turn = 0
     still_since = 0
+    browser_opened = False
     Path("visu").mkdir(exist_ok=True)
 
     last_view = board_view(frame, H)
@@ -226,17 +225,10 @@ try:
             print(f"Turn {turn}: Move detected: {detected_move.uci()}")
             print(f"Turn {turn}: Board FEN: {board.board_fen()}")
 
-            svg = chess.svg.board(board, size=400)
-
-            # HTML with Auto-Refresh
-            html_content = f"<html><head><meta http-equiv='refresh' content='1'></head><body>{svg}</body></html>"
-
-            with Path("visu/board.html").open("w", encoding="utf-8") as f:
-                f.write(html_content)
-
-            # opens the board visualization in the default web browser on the first turn
-            if turn == 1 and Path("visu/board.html").exists():
-                webbrowser.open("file://" + os.path.realpath("visu/board.html"))
+            visu_path = update_browser_view(board, turn)
+            if not browser_opened:
+                webbrowser.open(visu_path.resolve().as_uri())
+                browser_opened = True
 
             prev_board_view = current_view.copy()
             suggestion = None

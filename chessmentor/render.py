@@ -1,6 +1,8 @@
 import math
+from pathlib import Path
 
 import chess
+import chess.svg
 import cv2 as cv
 import numpy as np
 
@@ -106,3 +108,67 @@ def draw_arrow(frame, H_inv, from_sq: str, to_sq: str, color=(0, 0, 255), thickn
         tipLength=arrow_tip,
         line_type=cv.LINE_AA,
     )
+
+
+def update_browser_view(board, turn):
+    # Status
+    status = "Game in Progress"
+    if board.is_checkmate():
+        status = "Checkmate!"
+    elif board.is_check():
+        status = "Check!"
+    elif board.is_stalemate():
+        status = "Stalemate!"
+
+    lastmove = board.peek() if board.move_stack else None
+    last_move_str = lastmove.uci() if lastmove else "-"
+    svg = chess.svg.board(board, size=400, lastmove=lastmove)
+
+    inventory = {
+        chess.PAWN: 8,
+        chess.KNIGHT: 2,
+        chess.BISHOP: 2,
+        chess.ROOK: 2,
+        chess.QUEEN: 1,
+    }
+    uni_map = chess.UNICODE_PIECE_SYMBOLS
+
+    lost_w, lost_b = [], []
+    for pt, count in inventory.items():
+        missing_w = max(0, count - len(board.pieces(pt, chess.WHITE)))
+        missing_b = max(0, count - len(board.pieces(pt, chess.BLACK)))
+        lost_w.extend([uni_map[chess.piece_symbol(pt).upper()]] * missing_w)
+        lost_b.extend([uni_map[chess.piece_symbol(pt).lower()]] * missing_b)
+
+    html = f"""
+    <html>
+    <head>
+        <meta http-equiv='refresh' content='1'>
+        <style>
+            body {{ font-family: sans-serif; display: flex; gap: 20px; padding: 20px; background: #2c2c2c; color: white; }}
+            .info {{ background: #3c3c3c; padding: 20px; border-radius: 8px; min-width: 250px; }}
+            .status {{ color: #ff5252; font-weight: bold; }}
+            .graveyard {{ font-size: 28px; letter-spacing: 5px; }}
+        </style>
+    </head>
+    <body>
+        <div>{svg}</div>
+        <div class="info">
+            <h2>Zug {turn}</h2>
+            <p><strong>Status:</strong> <span class="status">{status}</span></p>
+            <p><strong>Letzter Zug:</strong> {last_move_str}</p>
+            <hr>
+            <h3>Ausgeschieden:</h3>
+            <p>Weiß: <span class="graveyard">{"".join(lost_w) or "-"}</span></p>
+            <p>Schwarz: <span class="graveyard">{"".join(lost_b) or "-"}</span></p>
+        </div>
+    </body>
+    </html>
+    """
+
+    path = Path("visu/board.html")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as f:
+        f.write(html)
+
+    return path

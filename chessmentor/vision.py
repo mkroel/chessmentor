@@ -44,7 +44,6 @@ def get_diff(board_view, prev_board_view):
 
 def is_still(view, prev_frame, threshold):
     movement = cv.absdiff(view, prev_frame)
-    print(f"Movement mean: {movement.mean():.2f}")
     return movement.mean() < threshold
 
 
