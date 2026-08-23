@@ -1,4 +1,8 @@
 import chess
+import numpy as np
+
+from chessmentor.detect import predict_board
+from chessmentor.vision import get_diff
 
 
 def get_expected_fields(board, move):
@@ -38,6 +42,72 @@ def diff_score(board, move, diff, penalty=0.6):
     return hits - penalty * quiet_ratio
 
 
+def detect_played_move(
+    frame, current_view, prev_board_view, board, H, config, detector, turn
+):
+    diff = get_diff(current_view, prev_board_view)
+    active = [
+        field
+        for field, value in diff.items()
+        if value > config["active_field_threshold"]
+    ]
+
+    if len(active) > config["max_active_fields"]:
+        print(
+            f"Active fields: {len(active)}, max diff: {max(diff.values()):.1f}, "
+            f"median diff: {np.median(list(diff.values())):.1f}"
+        )
+        return retry_with_model(
+            frame, H, board, f"Turn {turn}: too many changes ({len(active)})", detector
+        )
+
+    valid_moves = filter_moves_by_inventory(board)
+    move_scores = {move: diff_score(board, move, diff) for move in valid_moves}
+
+    # sort moves by score and promotion value
+    promo_values = {chess.QUEEN: 4, chess.ROOK: 3, chess.BISHOP: 2, chess.KNIGHT: 1}
+    sorted_moves = sorted(
+        valid_moves,
+        key=lambda m: (move_scores[m], promo_values.get(m.promotion, 0)),
+        reverse=True,
+    )
+
+    if not sorted_moves:
+        return None
+
+    best_move = sorted_moves[0]
+    second_detected = next(
+        (
+            m
+            for m in sorted_moves[1:]
+            if (m.from_square, m.to_square)
+            != (best_move.from_square, best_move.to_square)
+        ),
+        None,
+    )
+
+    if move_scores[best_move] < 0.1:
+        return retry_with_model(
+            frame,
+            H,
+            board,
+            f"Turn {turn}: no clear move (best score {move_scores[best_move]:.3f})",
+            detector,
+        )
+    elif second_detected and (
+        move_scores[best_move] - move_scores[second_detected] < 0.05
+    ):
+        return retry_with_model(
+            frame,
+            H,
+            board,
+            f"Turn {turn}: ambiguous ({best_move.uci()} against {second_detected.uci()})",
+            detector,
+        )
+
+    return best_move
+
+
 def filter_moves_by_inventory(board):
     color = board.turn
 
@@ -70,6 +140,41 @@ def filter_moves_by_inventory(board):
             filtered_moves.extend(promo_moves)
 
     return filtered_moves
+
+
+def check_against_image(frame, H, expected_board, label, detector):
+    detected, outside, collisions = predict_board(detector.detect(frame), H)
+    mismatches = compare_position(expected_board, detected)
+    if mismatches:
+        print(f"{label}: {len(mismatches)} Fields differ")
+        print(f"  {describe_mismatches(mismatches)}")
+    else:
+        print(f"{label}: Position matches")
+    if outside:
+        print(
+            f"  {outside} Detections outside the board, {collisions} Multiple placements"
+        )
+
+    return mismatches
+
+
+def retry_with_model(frame, H, board, reason, detector):
+    # if diff fails, try to detect the position with the model and match it to a legal move
+    print(f"  {reason} -> second attempt with the model")
+    detected, outside, _ = predict_board(detector.detect(frame), H)
+
+    # filter_moves_by_inventory ist ja bereits in game.py
+    move, info = match_moves_to_position(
+        board, detected, filter_moves_by_inventory(board)
+    )
+    if move is None:
+        print(f"  Model could not decide: {info}")
+        if outside:
+            print(f"  ({outside} Detections outside the board)")
+        return None
+
+    print(f"  Modell sagt {move.uci()} ({info})")
+    return move
 
 
 def compare_position(expected, detected):

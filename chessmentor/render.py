@@ -49,6 +49,26 @@ def _text_centered(frame, text, center, color, scale, thickness):
     )
 
 
+def setup_windows():
+    cv.namedWindow("Game Capture", cv.WINDOW_NORMAL)
+    cv.namedWindow("Board View", cv.WINDOW_NORMAL)
+    cv.namedWindow("Difference", cv.WINDOW_NORMAL)
+
+    dummy = np.zeros((500, 500, 3), dtype=np.uint8)
+    cv.imshow("Game Capture", dummy)
+    cv.imshow("Board View", dummy)
+    cv.imshow("Difference", dummy)
+    cv.waitKey(1)
+
+    cv.resizeWindow("Game Capture", 640, 480)
+    cv.resizeWindow("Board View", 500, 500)
+    cv.resizeWindow("Difference", 500, 500)
+
+    cv.moveWindow("Game Capture", 0, 0)
+    cv.moveWindow("Board View", 650, 0)
+    cv.moveWindow("Difference", 1160, 0)
+
+
 def draw_position(frame, H_inv, board, scale=0.9, thickness=2):
     # letter encodes the type, text color encodes the side
     for square, piece in board.piece_map().items():
