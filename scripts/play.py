@@ -12,7 +12,7 @@ import numpy as np
 import yaml
 
 from chessmentor.board import grid_points, homography, rotate_corners
-from chessmentor.camera import configure_camera, get_corners
+from chessmentor.camera import configure_camera, get_corners, pick_corners
 from chessmentor.detect import Detector
 from chessmentor.engine import get_best_move
 from chessmentor.game import check_against_image, detect_played_move
@@ -20,6 +20,7 @@ from chessmentor.render import (
     draw_arrow,
     draw_grid,
     draw_position,
+    run_setup_menu,
     setup_windows,
     update_browser_view,
 )
@@ -76,7 +77,9 @@ def setup_phase(cap, config, corners, board, detector):
     return False, corners, H, H_inv, img_grid, prev_board_view
 
 
-def game_phase(cap, config, board, H, H_inv, img_grid, prev_board_view, detector):
+def game_phase(
+    cap, config, board, H, H_inv, img_grid, prev_board_view, detector, players
+):
     game_finished = False
     show_grid = True
     show_pos = True
@@ -98,8 +101,13 @@ def game_phase(cap, config, board, H, H_inv, img_grid, prev_board_view, detector
         if not ok:
             continue
 
+        current_player = players[board.turn]
+        is_engine_turn = current_player["type"] == "engine"
+
         if suggestion is None and not board.is_game_over():
-            suggestion, best_score = get_best_move(board, config)
+            suggestion, best_score = get_best_move(
+                board, config, current_player["skill"]
+            )
 
         view = frame.copy()
         current_view = board_view(frame, H)
@@ -115,7 +123,12 @@ def game_phase(cap, config, board, H, H_inv, img_grid, prev_board_view, detector
         if suggestion:
             from_sq = chess.square_name(suggestion.from_square)
             to_sq = chess.square_name(suggestion.to_square)
-            draw_arrow(view, H_inv, from_sq, to_sq)
+
+            if is_engine_turn:
+                draw_arrow(view, H_inv, from_sq, to_sq, color=(255, 0, 0))  # Blue
+            elif current_player["mentor"]:
+                draw_arrow(view, H_inv, from_sq, to_sq, color=(0, 255, 0))  # Green
+
             cv.putText(
                 view,
                 f"Eval: {best_score}",
@@ -150,6 +163,17 @@ def game_phase(cap, config, board, H, H_inv, img_grid, prev_board_view, detector
                 suggestion = None
                 best_score = None
                 print("undo move")
+        elif key == ord("c"):
+            print("Re-picking corners...")
+            new_corners, _ = pick_corners(cap, config)
+            if new_corners and len(new_corners) == 4:
+                H, H_inv = homography(np.float32(new_corners))
+                img_grid = grid_points(H_inv)
+                current_view = board_view(frame, H)
+                prev_board_view = current_view.copy()
+                last_view = current_view.copy()
+                view_stack.clear()
+                print("Corners updated successfully.")
         # space for game logic, move detection, etc.
         elif key == ord(" ") or (
             still_since == config["still_frames_required"] and turn > 0
@@ -167,13 +191,26 @@ def game_phase(cap, config, board, H, H_inv, img_grid, prev_board_view, detector
                 frame, current_view, prev_board_view, board, H, config, detector, turn
             )
 
-            if detected_move is None:
+            if detected_move:
+                if is_engine_turn:
+                    if detected_move == suggestion:
+                        view_stack.append(prev_board_view)
+                        board.push(detected_move)
+                        print(
+                            f"Turn {turn}: Engine move executed: {detected_move.uci()}"
+                        )
+                    else:
+                        print(
+                            f"Wrong piece moved! Please execute engine move {suggestion.uci()}."
+                        )
+                        continue
+                else:
+                    view_stack.append(prev_board_view)
+                    board.push(detected_move)
+                    print(f"Turn {turn}: Move detected: {detected_move.uci()}")
+            else:
                 continue
 
-            view_stack.append(prev_board_view)
-            board.push(detected_move)
-
-            print(f"Turn {turn}: Move detected: {detected_move.uci()}")
             print(f"Turn {turn}: Board FEN: {board.board_fen()}")
 
             visu_path = update_browser_view(board, turn, best_score)
@@ -217,6 +254,8 @@ def main():
         if corners is None:
             raise RuntimeError("Failed to get corners")
 
+        players = run_setup_menu(cap)
+
         # setup chess board
         board = chess.Board()
         print("Setup completed")
@@ -227,7 +266,15 @@ def main():
 
         if not game_finished:
             game_phase(
-                cap, config, board, H, H_inv, img_grid, prev_board_view, detector
+                cap,
+                config,
+                board,
+                H,
+                H_inv,
+                img_grid,
+                prev_board_view,
+                detector,
+                players,
             )
 
     except Exception as e:

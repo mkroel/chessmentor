@@ -69,6 +69,98 @@ def setup_windows():
     cv.moveWindow("Difference", 1160, 0)
 
 
+def run_setup_menu(cap):
+    players = {
+        chess.WHITE: {"type": "human", "mentor": True, "skill": 20},
+        chess.BLACK: {"type": "engine", "mentor": False, "skill": 5},
+    }
+    selected = chess.WHITE
+
+    while True:
+        ok, frame = cap.read()
+        if not ok:
+            continue
+
+        view = np.zeros_like(frame)
+
+        cv.putText(
+            view,
+            "Setup Menu (W/B: Typ, M: Mentor)",
+            (50, 50),
+            cv.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (255, 255, 255),
+            2,
+        )
+
+        c_w = (0, 255, 0) if selected == chess.WHITE else (200, 200, 200)
+        cv.putText(
+            view,
+            f"[1] White: {players[chess.WHITE]['type']} | Mentor: {players[chess.WHITE]['mentor']} | Skill: {players[chess.WHITE]['skill']}",
+            (50, 100),
+            cv.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            c_w,
+            2,
+        )
+
+        c_b = (0, 255, 0) if selected == chess.BLACK else (200, 200, 200)
+        cv.putText(
+            view,
+            f"[2] Black: {players[chess.BLACK]['type']} | Mentor: {players[chess.BLACK]['mentor']} | Skill: {players[chess.BLACK]['skill']}",
+            (50, 150),
+            cv.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            c_b,
+            2,
+        )
+
+        cv.putText(
+            view,
+            "+ / - : Skill aendern",
+            (50, 220),
+            cv.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (150, 150, 150),
+            1,
+        )
+        cv.putText(
+            view,
+            "ENTER : Start",
+            (50, 300),
+            cv.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (0, 255, 0),
+            2,
+        )
+
+        cv.imshow("Game Capture", view)
+        key = cv.waitKey(1) & 0xFF
+
+        if key in (13, 10):  # ENTER
+            break
+        elif key == ord("w"):
+            players[chess.WHITE]["type"] = (
+                "engine" if players[chess.WHITE]["type"] == "human" else "human"
+            )
+        elif key == ord("b"):
+            players[chess.BLACK]["type"] = (
+                "engine" if players[chess.BLACK]["type"] == "human" else "human"
+            )
+        elif key == ord("m"):
+            players[selected]["mentor"] = not players[selected]["mentor"]
+        elif key == ord("1"):
+            selected = chess.WHITE
+        elif key == ord("2"):
+            selected = chess.BLACK
+        elif key == ord("+"):
+            players[selected]["skill"] = min(20, players[selected]["skill"] + 1)
+        elif key == ord("-"):
+            players[selected]["skill"] = max(0, players[selected]["skill"] - 1)
+
+    return players
+
+
 def draw_position(frame, H_inv, board, scale=0.9, thickness=2):
     # letter encodes the type, text color encodes the side
     for square, piece in board.piece_map().items():
