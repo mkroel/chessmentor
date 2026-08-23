@@ -12,7 +12,7 @@ camera:
   auto_exposure: 0.25   # 0.25 = manuell, 0.75 = auto (DSHOW)
   exposure: -4          # negativ, -4 heller / -8 dunkler
   auto_wb: 0
-  wb_temperature: 4000  # 2800 Glühlampe, 4000 Mischlicht, 6500 Tageslicht
+  wb_temperature: 4000
   gain: 0
 
 # Corner detection parameters
@@ -26,5 +26,15 @@ depth: 15
 movetime: 1000
 n_best: 1
 
+detector:
+  weights_path: saved_runs/run-5/weights/best.pt   # run-5
+  confidence_threshold: 0.25
+  imgsz: 1280
+  drift_check_every: 5         # check for drift every N frames
+
+# Chessboard detection
+max_active_fields: 10   # maximum number of active fields
+active_field_threshold: 5.0
+
 movement_threshold: 1.0
-still_frames_required: 5
+still_frames_required: 8

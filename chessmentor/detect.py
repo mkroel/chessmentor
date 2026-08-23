@@ -1,6 +1,10 @@
 from dataclasses import dataclass
 
+import chess
 from ultralytics import YOLO
+
+from chessmentor.board import px_to_field
+from chessmentor.pieces import piece_from_class
 
 
 @dataclass(frozen=True)
@@ -34,3 +38,21 @@ class Detector:
             )
             for box in result.boxes
         ]
+
+
+def predict_board(detections, H):
+    # one piece per square, highest confidence wins
+    best = {}
+    outside = 0
+    for det in detections:
+        field = px_to_field(det.foot_point, H)
+        if field is None:
+            outside += 1
+            continue
+        if field not in best or det.confidence > best[field].confidence:
+            best[field] = det
+
+    board = chess.Board(None)
+    for field, det in best.items():
+        board.set_piece_at(chess.parse_square(field), piece_from_class(det.class_id))
+    return board, outside, len(detections) - len(best) - outside

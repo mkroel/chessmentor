@@ -1,4 +1,8 @@
 # imports
+import os
+
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+
 import webbrowser
 from pathlib import Path
 
@@ -10,14 +14,63 @@ import yaml
 from chessmentor.board import grid_points, homography, rotate_corners
 from chessmentor.camera import configure_camera
 from chessmentor.corners import get_corners
+from chessmentor.detect import Detector, predict_board
 from chessmentor.engine import get_best_move
-from chessmentor.game import diff_score, filter_moves_by_inventory
+from chessmentor.game import (
+    compare_position,
+    describe_mismatches,
+    diff_score,
+    filter_moves_by_inventory,
+    match_moves_to_position,
+)
 from chessmentor.render import draw_arrow, draw_grid, draw_position, update_browser_view
 from chessmentor.vision import board_view, framing_check, get_diff, is_still
 
 # load config
 with Path("config.yaml").open() as f:
     config = yaml.safe_load(f)
+
+# load detector model
+det_cfg = config["detector"]
+detector = Detector(
+    det_cfg["weights_path"],
+    conf=det_cfg["confidence_threshold"],
+    imgsz=det_cfg["imgsz"],
+)
+print("Detector loaded")
+
+
+def check_against_image(frame, H, expected_board, label):
+    detected, outside, collisions = predict_board(detector.detect(frame), H)
+    mismatches = compare_position(expected_board, detected)
+    if mismatches:
+        print(f"{label}: {len(mismatches)} Fields differ")
+        print(f"  {describe_mismatches(mismatches)}")
+    else:
+        print(f"{label}: Position matches")
+    if outside:
+        print(
+            f"  {outside} Detections outside the board, {collisions} Multiple placements"
+        )
+
+    return mismatches
+
+
+def retry_with_model(frame, H, board, reason):
+    # if diff fails, try to detect the position with the model and match it to a legal move
+    print(f"  {reason} -> second attempt with the model")
+    detected, outside, _ = predict_board(detector.detect(frame), H)
+    move, info = match_moves_to_position(
+        board, detected, filter_moves_by_inventory(board)
+    )
+    if move is None:
+        print(f"  Model could not decide: {info}")
+        if outside:
+            print(f"  ({outside} Detections outside the board)")
+        return None
+
+    print(f"  Modell sagt {move.uci()} ({info})")
+    return move
 
 
 # setup cam
@@ -51,9 +104,28 @@ try:
     best_score = None
     view_stack = []
 
+    # create windows for display
+    cv.namedWindow("Game Capture", cv.WINDOW_NORMAL)
+    cv.namedWindow("Board View", cv.WINDOW_NORMAL)
+    cv.namedWindow("Difference", cv.WINDOW_NORMAL)
+
+    dummy = np.zeros((500, 500, 3), dtype=np.uint8)
+    cv.imshow("Game Capture", dummy)
+    cv.imshow("Board View", dummy)
+    cv.imshow("Difference", dummy)
+    cv.waitKey(1)
+
+    cv.resizeWindow("Game Capture", 640, 480)
+    cv.resizeWindow("Board View", 500, 500)
+    cv.resizeWindow("Difference", 500, 500)
+
+    cv.moveWindow("Game Capture", 0, 0)
+    cv.moveWindow("Board View", 640, 0)
+    cv.moveWindow("Difference", 1140, 0)
+
     game_ready = False
     show_start = True
-    print("Startaufstellung aufbauen")
+    print("Setting up starting position")
     while not game_ready:
         ok, frame = cap.read()
         if not ok:
@@ -75,12 +147,18 @@ try:
             corners = rotate_corners(corners, 2)
             H, H_inv = homography(np.float32(corners))
             img_grid = grid_points(H_inv)
-            print("Seite gewechselt")
+            print("Side switched")
+        elif key == ord("p"):
+            # check starting position without starting the game
+            check_against_image(frame, H, board, "Setting up starting position")
         elif key == ord("g"):
+            # check starting position and start the game
+            check_against_image(frame, H, board, "Setting up starting position")
+
             game_ready = True
             prev_board_view = board_view(frame, H)
 
-            print("Spiel gestartet")
+            print("Game started")
 
     # game loop
     turn = 0
@@ -151,7 +229,7 @@ try:
             still_since == config["still_frames_required"] and turn > 0
         ):
             if board.is_game_over():
-                print("Partie ist bereits beendet (Matt/Patt).")
+                print("Game is already over (checkmate/stalemate).")
                 continue
 
             turn = board.ply() + 1
@@ -168,15 +246,24 @@ try:
             # get the move based on the diff and update the board
             active = []
             for field, value in diff.items():
-                if value > 5.0:  # threshold for detecting a change
+                if value > config["active_field_threshold"]:
                     active.append(field)
 
-            if len(active) > 6:
-                print(f"Turn {turn}: Too many changes detected, ignoring.")
+            detected_move = None
+
+            if len(active) > config["max_active_fields"]:
                 print(
-                    f"Active fields: {active}, max diff: {max(diff.values())}, median diff: {np.median(list(diff.values()))}"
+                    f"Active fields: {len(active)}, max diff: {max(diff.values()):.1f}, "
+                    f"median diff: {np.median(list(diff.values())):.1f}"
                 )
-                continue
+                detected_move = retry_with_model(
+                    frame,
+                    H,
+                    board,
+                    f"Turn {turn}: too many changes ({len(active)})",
+                )
+                if detected_move is None:
+                    continue
 
             # get move scores for each legal move, filter by inventory
             valid_moves = filter_moves_by_inventory(board)
@@ -196,28 +283,45 @@ try:
                 return (move_scores[m], promo_val)
 
             sorted_moves = sorted(valid_moves, key=sort_key, reverse=True)
-            detected_move = sorted_moves[0]
 
-            if move_scores[detected_move] < 0.1:
-                print(f"Turn {turn}: No valid move detected, ignoring.")
-                continue
+            # if no move detected yet, pick the best scored move and check for ambiguity
+            if detected_move is None:
+                best_move = sorted_moves[0]
 
-            # check for ambiguity: if the second best move has a similar score, ignore the detection
-            second_detected = None
-            for m in sorted_moves[1:]:
-                if (m.from_square, m.to_square) != (
-                    detected_move.from_square,
-                    detected_move.to_square,
+                # check if the second best move is close in score to the best move
+                second_detected = None
+                for m in sorted_moves[1:]:
+                    if (m.from_square, m.to_square) != (
+                        best_move.from_square,
+                        best_move.to_square,
+                    ):
+                        second_detected = m
+                        break
+
+                if move_scores[best_move] < 0.1:
+                    detected_move = retry_with_model(
+                        frame,
+                        H,
+                        board,
+                        f"Turn {turn}: no clear move "
+                        f"(best score {move_scores[best_move]:.3f})",
+                    )
+                elif (
+                    second_detected
+                    and move_scores[best_move] - move_scores[second_detected] < 0.05
                 ):
-                    second_detected = m
-                    break
+                    detected_move = retry_with_model(
+                        frame,
+                        H,
+                        board,
+                        f"Turn {turn}: ambiguous ({best_move.uci()} against "
+                        f"{second_detected.uci()})",
+                    )
+                else:
+                    detected_move = best_move
 
-            if (
-                second_detected
-                and move_scores[detected_move] - move_scores[second_detected] < 0.05
-            ):
-                print(f"Turn {turn}: Ambiguous move detected, ignoring.")
-                continue
+                if detected_move is None:
+                    continue
 
             view_stack.append(prev_board_view)
 
@@ -225,7 +329,7 @@ try:
             print(f"Turn {turn}: Move detected: {detected_move.uci()}")
             print(f"Turn {turn}: Board FEN: {board.board_fen()}")
 
-            visu_path = update_browser_view(board, turn)
+            visu_path = update_browser_view(board, turn, best_score)
             if not browser_opened:
                 webbrowser.open(visu_path.resolve().as_uri())
                 browser_opened = True

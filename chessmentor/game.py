@@ -15,7 +15,7 @@ def get_expected_fields(board, move):
     return diff_fields
 
 
-def diff_score(board, move, diff, penalty=1.0 / 5.0):
+def diff_score(board, move, diff, penalty=0.6):
     expected_fields = get_expected_fields(board, move)
 
     total_diff = sum(diff.values())
@@ -27,16 +27,15 @@ def diff_score(board, move, diff, penalty=1.0 / 5.0):
         expected_diff.append(diff.get(fields, 0.0))
 
     hits = sum(expected_diff) / total_diff
-    score = hits
 
     max_diff = max(diff.values()) if diff.values() else 0.0
     dynamic_threshold = max_diff / 2.0
 
-    for val in expected_diff:
-        if val < dynamic_threshold:
-            score -= penalty
+    # Count how many expected fields have a diff below the dynamic threshold
+    quiet = sum(1 for val in expected_diff if val < dynamic_threshold)
+    quiet_ratio = quiet / len(expected_diff) if expected_diff else 0.0
 
-    return score
+    return hits - penalty * quiet_ratio
 
 
 def filter_moves_by_inventory(board):
@@ -71,3 +70,56 @@ def filter_moves_by_inventory(board):
             filtered_moves.extend(promo_moves)
 
     return filtered_moves
+
+
+def compare_position(expected, detected):
+    # fields where the expected and detected positions differ -> {fieldname: (expected, detected)}
+    mismatches = {}
+    for square in chess.SQUARES:
+        exp = expected.piece_at(square)
+        det = detected.piece_at(square)
+        if exp != det:
+            mismatches[chess.square_name(square)] = (exp, det)
+
+    return mismatches
+
+
+def describe_mismatches(mismatches, limit=8):
+    # short description
+    parts = []
+    for field, (exp, det) in list(mismatches.items())[:limit]:
+        want = exp.symbol() if exp else "leer"
+        got = det.symbol() if det else "leer"
+        parts.append(f"{field}: {want}->{got}")
+    if len(mismatches) > limit:
+        parts.append(f"... (+{len(mismatches) - limit})")
+
+    return ", ".join(parts)
+
+
+def match_moves_to_position(board, detected, moves, min_agreement=58, margin=2):
+    # compare the expected position after each move with the detected position
+    scored = []
+    for move in moves:
+        board.push(move)
+        agreement = sum(
+            1
+            for square in chess.SQUARES
+            if board.piece_at(square) == detected.piece_at(square)
+        )
+        board.pop()
+        scored.append((agreement, move))
+
+    if not scored:
+        return None, "no legal moves to compare"
+
+    scored.sort(key=lambda entry: -entry[0])
+    best_agreement, best_move = scored[0]
+    second_agreement = scored[1][0] if len(scored) > 1 else -1
+
+    if best_agreement < min_agreement:
+        return None, f"No best move found ({best_agreement}/64)"
+    if best_agreement - second_agreement < margin:
+        return None, f"ambiguous ({best_agreement} to {second_agreement})"
+
+    return best_move, f"{best_agreement}/64 Felder"

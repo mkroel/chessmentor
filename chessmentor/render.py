@@ -110,19 +110,34 @@ def draw_arrow(frame, H_inv, from_sq: str, to_sq: str, color=(0, 0, 255), thickn
     )
 
 
-def update_browser_view(board, turn):
+def update_browser_view(board, turn, eval_score=0.0):
     # Status
     status = "Game in Progress"
+    check_sq = None
+
     if board.is_checkmate():
         status = "Checkmate!"
+        check_sq = board.king(board.turn)
     elif board.is_check():
         status = "Check!"
+        check_sq = board.king(board.turn)
     elif board.is_stalemate():
         status = "Stalemate!"
 
     lastmove = board.peek() if board.move_stack else None
     last_move_str = lastmove.uci() if lastmove else "-"
-    svg = chess.svg.board(board, size=400, lastmove=lastmove)
+
+    # pass check_sq to highlight the king
+    svg = chess.svg.board(board, size=800, lastmove=lastmove, check=check_sq)
+
+    # calculate scorebar percentage (white height)
+    try:
+        score_val = float(str(eval_score).replace("+", ""))
+        # scale: 1 pawn = 5%, clamped between 5% and 95%
+        white_pct = max(5, min(95, 50 + (score_val * 5)))
+    except ValueError:
+        # fallback for mate strings like "+M3" or "-M2"
+        white_pct = 95 if "+" in str(eval_score) else 5
 
     inventory = {
         chess.PAWN: 8,
@@ -146,17 +161,26 @@ def update_browser_view(board, turn):
         <meta http-equiv='refresh' content='1'>
         <style>
             body {{ font-family: sans-serif; display: flex; gap: 20px; padding: 20px; background: #2c2c2c; color: white; }}
+            .wrapper {{ display: flex; gap: 10px; align-items: stretch; height: 800px; }}
+            .scorebar {{ width: 24px; background: #111; border-radius: 4px; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; }}
+            .score-white {{ background: #eee; width: 100%; height: {white_pct}%; transition: height 0.5s; }}
             .info {{ background: #3c3c3c; padding: 20px; border-radius: 8px; min-width: 250px; }}
             .status {{ color: #ff5252; font-weight: bold; }}
             .graveyard {{ font-size: 28px; letter-spacing: 5px; }}
         </style>
     </head>
     <body>
-        <div>{svg}</div>
+        <div class="wrapper">
+            {svg}
+            <div class="scorebar" title="Eval: {eval_score}">
+                <div class="score-white"></div>
+            </div>
+        </div>
         <div class="info">
             <h2>Zug {turn}</h2>
             <p><strong>Status:</strong> <span class="status">{status}</span></p>
             <p><strong>Letzter Zug:</strong> {last_move_str}</p>
+            <p><strong>Score:</strong> {eval_score}</p>
             <hr>
             <h3>Ausgeschieden:</h3>
             <p>Weiß: <span class="graveyard">{"".join(lost_w) or "-"}</span></p>
