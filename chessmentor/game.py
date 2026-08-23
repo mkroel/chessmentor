@@ -37,3 +37,37 @@ def diff_score(board, move, diff, penalty=1.0 / 5.0):
             score -= penalty
 
     return score
+
+
+def filter_moves_by_inventory(board):
+    color = board.turn
+
+    inventory = {
+        chess.QUEEN: max(0, 1 - len(board.pieces(chess.QUEEN, color))),
+        chess.ROOK: max(0, 2 - len(board.pieces(chess.ROOK, color))),
+        chess.BISHOP: max(0, 2 - len(board.pieces(chess.BISHOP, color))),
+        chess.KNIGHT: max(0, 2 - len(board.pieces(chess.KNIGHT, color))),
+    }
+
+    filtered_moves = []
+    promotions_by_square = {}
+
+    for move in board.legal_moves:
+        if move.promotion:
+            sq_pair = (move.from_square, move.to_square)
+            if sq_pair not in promotions_by_square:
+                promotions_by_square[sq_pair] = []
+            promotions_by_square[sq_pair].append(move)
+        else:
+            filtered_moves.append(move)
+
+    # Filter promotion moves based on inventory
+    for _, promo_moves in promotions_by_square.items():
+        valid_promos = [m for m in promo_moves if inventory.get(m.promotion, 0) > 0]
+        # If there are valid promotions, add them to the filtered moves; otherwise, add all promotion moves
+        if valid_promos:
+            filtered_moves.extend(valid_promos)
+        else:
+            filtered_moves.extend(promo_moves)
+
+    return filtered_moves
