@@ -17,6 +17,7 @@ camera:
 
 # Corner detection parameters
 corner_threshold: 10  # pixels
+board_rotation: 1   # 0 = no rotation, 1 = rotate 90 degrees clockwise, 2 = rotate 180 degrees, 3 = rotate 270 degrees clockwise
 
 # Chess Engine
 stockfish_path: stockfish/stockfish-windows-x86-64-avx2.exe
@@ -24,3 +25,6 @@ thread_count: 4
 depth: 15
 movetime: 1000
 n_best: 1
+
+movement_threshold: 1.0
+still_frames_required: 5

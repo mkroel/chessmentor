@@ -23,3 +23,5 @@ venv/
 # Tests
 *_test.py
 tests/
+
+board.html

@@ -5,7 +5,7 @@ from pathlib import Path
 import cv2 as cv
 import numpy as np
 
-from chessmentor.board import BOARD_PX, SQUARE_PX
+from chessmentor.board import BOARD_PX, SQUARE_PX, field_to_sq
 from chessmentor.camera import get_frame
 
 
@@ -165,6 +165,9 @@ def get_corners(cap: cv.VideoCapture, config: dict, override: bool = False):
     if found is not None:
         detected, error = found
 
+        # rotate detected corners according to the configured rotation
+        detected = rotate_corners(detected, config.get("board_rotation", 0))
+
         # no reference: save detected corners as new reference
         if stored is None:
             print(f"Corners detected ({error:.2f} px) - saved as new reference")
@@ -187,3 +190,23 @@ def get_corners(cap: cv.VideoCapture, config: dict, override: bool = False):
     print("No reference available - please click the corners")
     corners, _ = pick_corners(cap, config)
     return corners
+
+
+def rotate_corners(corners: list, rotation: int):
+    if rotation not in (0, 1, 2, 3):
+        raise ValueError("rotation must be 0, 1, 2, or 3")
+    return corners[rotation:] + corners[:rotation]
+
+
+def proof_corners(frame, corners: list):
+    #  get corners of a1
+    a1, _, _, _ = corners
+    a1 = field_to_sq(a1)
+
+    # check if a1 is black square, if not: warn user that board is rotated
+    color = np.mean(frame[int(a1[1]), int(a1[0])])
+
+    if color > 127:
+        print("Warning: a1 is not a black square - board is rotated?")
+        return False
+    return True

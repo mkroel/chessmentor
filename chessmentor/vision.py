@@ -44,4 +44,43 @@ def get_diff(board_view, prev_board_view):
 
 def is_still(view, prev_frame, threshold):
     movement = cv.absdiff(view, prev_frame)
+    print(f"Movement mean: {movement.mean():.2f}")
     return movement.mean() < threshold
+
+
+def overlay_lines(view, lines):
+    y = 30
+    for line in lines:
+        cv.putText(view, line, (12, y), cv.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 1)
+        y += 26
+
+
+def framing_check(cap):
+    roi_margin = 0.05
+    window = "Camera Framing Check"
+    while True:
+        ok, frame = cap.read()
+        if not ok:
+            continue
+
+        height, width = frame.shape[:2]
+        x1, y1 = int(width * roi_margin), int(height * roi_margin)
+        x2, y2 = int(width * (1 - roi_margin)), int(height * (1 - roi_margin))
+
+        view = frame.copy()
+        cv.rectangle(view, (x1, y1), (x2, y2), (0, 255, 255), 2)
+        overlay_lines(
+            view,
+            [
+                "Align the camera",
+                "ENTER continue   q quit",
+            ],
+        )
+
+        cv.imshow(window, view)
+        key = cv.waitKey(1) & 0xFF
+        if key == ord("q"):
+            return False
+        if key in (13, 10):
+            cv.destroyAllWindows()
+            return True
