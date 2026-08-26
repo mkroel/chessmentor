@@ -47,11 +47,15 @@ def is_still(view, prev_frame, threshold):
     return movement.mean() < threshold
 
 
-def overlay_lines(view, lines):
-    y = 30
+def overlay_lines(
+    view, lines, color=(0, 255, 255), scale=0.6, thickness=1, start_y=30, step=26
+):
+    y = start_y
     for line in lines:
-        cv.putText(view, line, (12, y), cv.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 1)
-        y += 26
+        cv.putText(
+            view, line, (12, y), cv.FONT_HERSHEY_SIMPLEX, scale, color, thickness
+        )
+        y += step
 
 
 def framing_check(cap):

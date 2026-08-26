@@ -24,7 +24,7 @@ from chessmentor.render import (
     setup_windows,
     update_browser_view,
 )
-from chessmentor.vision import board_view, framing_check, is_still
+from chessmentor.vision import board_view, framing_check, is_still, overlay_lines
 
 
 def setup_phase(cap, config, corners, board, detector):
@@ -49,6 +49,14 @@ def setup_phase(cap, config, corners, board, detector):
         if show_pos:
             draw_position(view, H_inv, board)
 
+        overlay_lines(
+            view,
+            ["Press [g] to start the game"],
+            color=(255, 255, 255),
+            thickness=2,
+            start_y=25,
+            step=25,
+        )
         cv.imshow("Game Capture", view)
         key = cv.waitKey(1) & 0xFF
 
@@ -83,6 +91,7 @@ def game_phase(
     game_finished = False
     show_grid = True
     show_pos = True
+    show_legend = True
     suggestion = None
     best_score = None
     view_stack = []
@@ -119,7 +128,20 @@ def game_phase(
             draw_grid(view, img_grid)
         if show_pos:
             draw_position(view, H_inv, board)
-
+        if show_legend:
+            status_lines = [
+                f"Turn: {turn} | Player: {'Human' if not is_engine_turn else 'Engine'}",
+                "Keys: [g] Grid, [o] Position, [l] Legend, [c] Re-pick Corners",
+                "[i] Input Move, [u] Undo, [q] Quit",
+            ]
+            overlay_lines(
+                view,
+                status_lines,
+                color=(255, 255, 255),
+                thickness=2,
+                start_y=25,
+                step=25,
+            )
         if suggestion:
             from_sq = chess.square_name(suggestion.from_square)
             to_sq = chess.square_name(suggestion.to_square)
@@ -128,16 +150,6 @@ def game_phase(
                 draw_arrow(view, H_inv, from_sq, to_sq, color=(255, 0, 0))  # Blue
             elif current_player["mentor"]:
                 draw_arrow(view, H_inv, from_sq, to_sq, color=(0, 255, 0))  # Green
-
-            cv.putText(
-                view,
-                f"Eval: {best_score}",
-                (10, 30),
-                cv.FONT_HERSHEY_SIMPLEX,
-                1,
-                (0, 255, 0),
-                2,
-            )
 
         # tracking diff for move detection
         still_since = (
@@ -156,6 +168,8 @@ def game_phase(
             show_grid = not show_grid
         elif key == ord("o"):
             show_pos = not show_pos
+        elif key == ord("l"):
+            show_legend = not show_legend
         elif key == ord("u"):
             if len(board.move_stack) > 0 and len(view_stack) > 0:
                 board.pop()
