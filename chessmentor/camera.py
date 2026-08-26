@@ -6,6 +6,7 @@ import cv2 as cv
 import numpy as np
 
 from chessmentor.board import BOARD_PX, SQUARE_PX, field_to_sq, rotate_corners
+from chessmentor.render import WIN_MAIN
 
 
 def configure_camera(cap: cv.VideoCapture, config: dict):
@@ -55,13 +56,13 @@ def pick_corners(cap: cv.VideoCapture, config: dict):
     cv.putText(
         frame,
         subheading,
-        (frame.shape[1] // 2 - 200, frame.shape[0] // 2 + 40),
+        (frame.shape[1] // 2 - 200, frame.shape[0] // 2 + 200),
         cv.FONT_HERSHEY_SIMPLEX,
         1,
         (0, 0, 255),
         2,
     )
-    cv.imshow("click Corners", frame)
+    cv.imshow(WIN_MAIN, frame)
 
     # callback function to get mouse click coordinates
     set_corners = []
@@ -71,15 +72,16 @@ def pick_corners(cap: cv.VideoCapture, config: dict):
             set_corners.append((x, y))
             print(f"Corner {len(set_corners)}: ({x}, {y})")
             cv.circle(frame, (x, y), 5, (0, 255, 0), -1)
-            cv.imshow("click Corners", frame)
-            if len(set_corners) == 4:
-                cv.destroyAllWindows()
+            cv.imshow(WIN_MAIN, frame)
 
-    cv.setMouseCallback("click Corners", mouse_callback)
+    cv.setMouseCallback(WIN_MAIN, mouse_callback)
 
     # wait for 4 clicks
     while len(set_corners) < 4:
         cv.waitKey(1)
+
+    # detach, otherwise the callback keeps eating clicks in the game loop
+    cv.setMouseCallback(WIN_MAIN, lambda *args: None)
 
     # write corners to config
     data = {"corners": set_corners, "width": frame.shape[1], "height": frame.shape[0]}

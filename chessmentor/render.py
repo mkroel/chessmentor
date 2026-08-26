@@ -1,3 +1,4 @@
+import ctypes
 import math
 from pathlib import Path
 
@@ -12,6 +13,21 @@ GRID_COLOR = (0, 255, 0)
 BOARD_PX = 800
 SQUARE_PX = BOARD_PX // 8
 TIP_LENGTH_PX = 25
+
+WIN_MAIN = "ChessMentor"
+WIN_BOARD = "Board View"
+WIN_DIFF = "Difference"
+
+WINDOW_FLAGS = cv.WINDOW_NORMAL | cv.WINDOW_KEEPRATIO | cv.WINDOW_GUI_EXPANDED
+
+# name, x, y, width, height
+WINDOW_LAYOUT = [
+    (WIN_MAIN, 0.0, 0.0, 0.66, 0.95),
+    (WIN_BOARD, 0.665, 0.0, 0.165, 0.42),
+    (WIN_DIFF, 0.835, 0.0, 0.165, 0.42),
+]
+
+MENU_REF_HEIGHT = 480
 
 WHITE_PIECE_COLOR = (255, 255, 255)
 BLACK_PIECE_COLOR = (0, 0, 255)
@@ -49,24 +65,22 @@ def _text_centered(frame, text, center, color, scale, thickness):
     )
 
 
+def get_screen_size():
+    user32 = ctypes.windll.user32
+    return user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+
+
 def setup_windows():
-    cv.namedWindow("Game Capture", cv.WINDOW_NORMAL)
-    cv.namedWindow("Board View", cv.WINDOW_NORMAL)
-    cv.namedWindow("Difference", cv.WINDOW_NORMAL)
-
+    screen_w, screen_h = get_screen_size()
     dummy = np.zeros((500, 500, 3), dtype=np.uint8)
-    cv.imshow("Game Capture", dummy)
-    cv.imshow("Board View", dummy)
-    cv.imshow("Difference", dummy)
+
+    for name, rx, ry, rw, rh in WINDOW_LAYOUT:
+        cv.namedWindow(name, WINDOW_FLAGS)
+        cv.resizeWindow(name, int(screen_w * rw), int(screen_h * rh))
+        cv.moveWindow(name, int(screen_w * rx), int(screen_h * ry))
+        cv.imshow(name, dummy)
+
     cv.waitKey(1)
-
-    cv.resizeWindow("Game Capture", 640, 480)
-    cv.resizeWindow("Board View", 500, 500)
-    cv.resizeWindow("Difference", 500, 500)
-
-    cv.moveWindow("Game Capture", 0, 0)
-    cv.moveWindow("Board View", 650, 0)
-    cv.moveWindow("Difference", 1160, 0)
 
 
 def run_setup_menu(cap):
@@ -83,58 +97,45 @@ def run_setup_menu(cap):
 
         view = np.zeros_like(frame)
 
-        cv.putText(
-            view,
-            "Setup Menu (W/B: Typ, M: Mentor)",
-            (50, 50),
-            cv.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (255, 255, 255),
-            2,
-        )
-
         c_w = (0, 255, 0) if selected == chess.WHITE else (200, 200, 200)
-        cv.putText(
-            view,
-            f"[1] White: {players[chess.WHITE]['type']} | Mentor: {players[chess.WHITE]['mentor']} | Skill: {players[chess.WHITE]['skill']}",
-            (50, 100),
-            cv.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            c_w,
-            2,
-        )
-
         c_b = (0, 255, 0) if selected == chess.BLACK else (200, 200, 200)
-        cv.putText(
-            view,
-            f"[2] Black: {players[chess.BLACK]['type']} | Mentor: {players[chess.BLACK]['mentor']} | Skill: {players[chess.BLACK]['skill']}",
-            (50, 150),
-            cv.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            c_b,
-            2,
-        )
 
-        cv.putText(
-            view,
-            "+ / - : Skill aendern",
-            (50, 220),
-            cv.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            (150, 150, 150),
-            1,
-        )
-        cv.putText(
-            view,
-            "ENTER : Start",
-            (50, 300),
-            cv.FONT_HERSHEY_SIMPLEX,
-            0.8,
-            (0, 255, 0),
-            2,
-        )
+        # text, y, scale, color, thickness
+        lines = [
+            ("Setup Menu (W/B: Typ, M: Mentor)", 50, 0.7, (255, 255, 255), 2),
+            (
+                f"[1] White: {players[chess.WHITE]['type']} | Mentor: {players[chess.WHITE]['mentor']} | Skill: {players[chess.WHITE]['skill']}",
+                100,
+                0.7,
+                c_w,
+                2,
+            ),
+            (
+                f"[2] Black: {players[chess.BLACK]['type']} | Mentor: {players[chess.BLACK]['mentor']} | Skill: {players[chess.BLACK]['skill']}",
+                150,
+                0.7,
+                c_b,
+                2,
+            ),
+            ("+ / - : Skill aendern", 220, 0.6, (150, 150, 150), 1),
+            ("ENTER : Start", 300, 0.8, (0, 255, 0), 2),
+        ]
 
-        cv.imshow("Game Capture", view)
+        # scale with the frame so the menu stays readable in a large window
+        s = frame.shape[0] / MENU_REF_HEIGHT
+        for text, y, scale, color, thickness in lines:
+            cv.putText(
+                view,
+                text,
+                (int(50 * s), int(y * s)),
+                cv.FONT_HERSHEY_SIMPLEX,
+                scale * s,
+                color,
+                max(1, round(thickness * s)),
+                cv.LINE_AA,
+            )
+
+        cv.imshow(WIN_MAIN, view)
         key = cv.waitKey(1) & 0xFF
 
         if key in (13, 10):  # ENTER

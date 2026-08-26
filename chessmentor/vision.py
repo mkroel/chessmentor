@@ -2,6 +2,7 @@ import cv2 as cv
 import numpy as np
 
 from chessmentor.board import BOARD_PX, SQUARE_PX, field_to_sq
+from chessmentor.render import WIN_MAIN
 
 
 def board_view(frame, H):
@@ -58,9 +59,8 @@ def overlay_lines(
         y += step
 
 
-def framing_check(cap):
+def framing_check(cap, window=WIN_MAIN):
     roi_margin = 0.05
-    window = "Camera Framing Check"
     while True:
         ok, frame = cap.read()
         if not ok:
@@ -85,5 +85,4 @@ def framing_check(cap):
         if key == ord("q"):
             return False
         if key in (13, 10):
-            cv.destroyAllWindows()
             return True

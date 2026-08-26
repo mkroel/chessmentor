@@ -17,6 +17,9 @@ from chessmentor.detect import Detector
 from chessmentor.engine import get_best_move
 from chessmentor.game import check_against_image, detect_played_move, get_manual_move
 from chessmentor.render import (
+    WIN_BOARD,
+    WIN_DIFF,
+    WIN_MAIN,
     draw_arrow,
     draw_grid,
     draw_position,
@@ -57,7 +60,7 @@ def setup_phase(cap, config, corners, board, detector):
             start_y=25,
             step=25,
         )
-        cv.imshow("Game Capture", view)
+        cv.imshow(WIN_MAIN, view)
         key = cv.waitKey(1) & 0xFF
 
         if key == ord("q"):
@@ -121,7 +124,7 @@ def game_phase(
         view = frame.copy()
         current_view = board_view(frame, H)
 
-        cv.imshow("Board View", current_view)
+        cv.imshow(WIN_BOARD, current_view)
 
         # overlays
         if show_grid:
@@ -159,7 +162,7 @@ def game_phase(
         )
         last_view = current_view.copy()
 
-        cv.imshow("Game Capture", view)
+        cv.imshow(WIN_MAIN, view)
         key = cv.waitKey(1) & 0xFF
 
         if key == ord("q"):
@@ -230,7 +233,7 @@ def game_phase(
             turn = board.ply() + 1
 
             if prev_board_view is not None:
-                cv.imshow("Difference", cv.absdiff(current_view, prev_board_view))
+                cv.imshow(WIN_DIFF, cv.absdiff(current_view, prev_board_view))
 
             detected_move = detect_played_move(
                 frame, current_view, prev_board_view, board, H, config, detector, turn
@@ -290,7 +293,6 @@ def main():
         configure_camera(cap, config)
 
         # align camera to board
-        cv.namedWindow("Framing Check", cv.WINDOW_NORMAL)
         if not framing_check(cap):
             raise RuntimeError("Framing check failed")
 
