@@ -143,6 +143,39 @@ def filter_moves_by_inventory(board):
     return filtered_moves
 
 
+def plausible_castling_rights(board):
+    # a scanned position has no history, so rights are guessed from king/rook placement
+    home_squares = (
+        (chess.WHITE, chess.E1, (chess.A1, chess.H1)),
+        (chess.BLACK, chess.E8, (chess.A8, chess.H8)),
+    )
+
+    rights = chess.BB_EMPTY
+    for color, king_square, rook_squares in home_squares:
+        if board.piece_at(king_square) != chess.Piece(chess.KING, color):
+            continue
+        for rook_square in rook_squares:
+            if board.piece_at(rook_square) == chess.Piece(chess.ROOK, color):
+                rights |= chess.BB_SQUARES[rook_square]
+
+    return rights
+
+
+def describe_status(status):
+    # chess.Status is an IntFlag, VALID is 0 and drops out of the check
+    flags = [flag.name for flag in chess.Status if status & flag]
+    return ", ".join(flags) if flags else "VALID"
+
+
+def scan_position(frame, H, detector, turn=chess.WHITE):
+    # read the physical board with the model and turn it into a playable position
+    detected, outside, collisions = predict_board(detector.detect(frame), H)
+    detected.turn = turn
+    detected.castling_rights = plausible_castling_rights(detected)
+
+    return detected, outside, collisions
+
+
 def check_against_image(frame, H, expected_board, label, detector):
     detected, outside, collisions = predict_board(detector.detect(frame), H)
     mismatches = compare_position(expected_board, detected)

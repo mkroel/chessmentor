@@ -15,7 +15,13 @@ from chessmentor.board import grid_points, homography, rotate_corners
 from chessmentor.camera import configure_camera, get_corners, pick_corners
 from chessmentor.detect import Detector
 from chessmentor.engine import get_best_move
-from chessmentor.game import check_against_image, detect_played_move, get_manual_move
+from chessmentor.game import (
+    check_against_image,
+    describe_status,
+    detect_played_move,
+    get_manual_move,
+    scan_position,
+)
 from chessmentor.render import (
     WIN_BOARD,
     WIN_DIFF,
@@ -30,6 +36,26 @@ from chessmentor.render import (
 from chessmentor.vision import board_view, framing_check, is_still, overlay_lines
 
 
+def read_position(board, frame, H, detector):
+    # replace the starting position with what the model sees on the physical board
+    detected, outside, collisions = scan_position(frame, H, detector, board.turn)
+
+    if outside or collisions:
+        print(
+            f"  {outside} Detections outside the board, {collisions} Multiple placements"
+        )
+
+    if not detected.is_valid():
+        print(f"Position not usable: {describe_status(detected.status())}")
+        print(f"  Detected FEN: {detected.fen()}")
+        return False
+
+    board.set_fen(detected.fen())
+    print(f"Position read: {len(board.piece_map())} pieces")
+    print(f"  FEN: {board.fen()}")
+    return True
+
+
 def setup_phase(cap, config, corners, board, detector):
     # calculate homography and grid points
     H, H_inv = homography(np.float32(corners))
@@ -39,6 +65,7 @@ def setup_phase(cap, config, corners, board, detector):
     show_pos = True
     game_ready = False
     prev_board_view = None
+    scanned = False
 
     print("Setting up starting position")
     while not game_ready:
@@ -52,9 +79,15 @@ def setup_phase(cap, config, corners, board, detector):
         if show_pos:
             draw_position(view, H_inv, board)
 
+        status_lines = [
+            f"Start: {'read from board' if scanned else 'standard position'} "
+            f"| To move: {'White' if board.turn == chess.WHITE else 'Black'}",
+            "[r] Read position, [n] Standard position, [t] Side to move",
+            "[p] Check, [s] Switch side, [g] Start the game, [q] Quit",
+        ]
         overlay_lines(
             view,
-            ["Press [g] to start the game"],
+            status_lines,
             color=(255, 255, 255),
             thickness=2,
             start_y=25,
@@ -71,6 +104,18 @@ def setup_phase(cap, config, corners, board, detector):
             H, H_inv = homography(np.float32(corners))
             img_grid = grid_points(H_inv)
             print("Side switched")
+        elif key == ord("r"):
+            # read the position off the board instead of using the standard one
+            if read_position(board, frame, H, detector):
+                scanned = True
+        elif key == ord("n"):
+            board.reset()
+            scanned = False
+            print("Back to the standard position")
+        elif key == ord("t"):
+            # a read position carries no side to move, so it has to be set by hand
+            board.turn = not board.turn
+            print(f"To move: {'White' if board.turn == chess.WHITE else 'Black'}")
         elif key == ord("p"):
             # check starting position without starting the game
             check_against_image(
@@ -78,12 +123,16 @@ def setup_phase(cap, config, corners, board, detector):
             )
         elif key == ord("g"):
             # check starting position and start the game
+            if not board.is_valid():
+                print(f"Position not playable: {describe_status(board.status())}")
+                continue
+
             check_against_image(
                 frame, H, board, "Setting up starting position", detector
             )
             game_ready = True
             prev_board_view = board_view(frame, H)
-            print("Game started")
+            print(f"Game started from {board.fen()}")
 
     return False, corners, H, H_inv, img_grid, prev_board_view
 
