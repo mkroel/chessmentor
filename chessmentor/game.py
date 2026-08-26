@@ -58,7 +58,13 @@ def detect_played_move(
             f"median diff: {np.median(list(diff.values())):.1f}"
         )
         return retry_with_model(
-            frame, H, board, f"Turn {turn}: too many changes ({len(active)})", detector
+            frame,
+            H,
+            board,
+            f"Turn {turn}: too many changes ({len(active)})",
+            detector,
+            min_agreement=config.get("model_min_agreement", 58),
+            margin=config.get("model_margin", 2),
         )
 
     valid_moves = filter_moves_by_inventory(board)
@@ -86,23 +92,18 @@ def detect_played_move(
         None,
     )
 
-    if move_scores[best_move] < 0.1:
-        return retry_with_model(
-            frame,
-            H,
-            board,
-            f"Turn {turn}: no clear move (best score {move_scores[best_move]:.3f})",
-            detector,
-        )
-    elif second_detected and (
-        move_scores[best_move] - move_scores[second_detected] < 0.05
+    if move_scores[best_move] < 0.1 or (
+        second_detected
+        and (move_scores[best_move] - move_scores[second_detected] < 0.05)
     ):
         return retry_with_model(
             frame,
             H,
             board,
-            f"Turn {turn}: ambiguous ({best_move.uci()} against {second_detected.uci()})",
+            f"Turn {turn}: too many changes ({len(active)})",
             detector,
+            min_agreement=config.get("model_min_agreement", 58),
+            margin=config.get("model_margin", 2),
         )
 
     return best_move
@@ -158,19 +159,29 @@ def check_against_image(frame, H, expected_board, label, detector):
     return mismatches
 
 
-def retry_with_model(frame, H, board, reason, detector):
+def retry_with_model(frame, H, board, reason, detector, min_agreement=58, margin=2):
     # if diff fails, try to detect the position with the model and match it to a legal move
     print(f"  {reason} -> second attempt with the model")
-    detected, outside, _ = predict_board(detector.detect(frame), H)
+    detected, outside, collisions = predict_board(detector.detect(frame), H)
 
-    # filter_moves_by_inventory ist ja bereits in game.py
-    move, info = match_moves_to_position(
-        board, detected, filter_moves_by_inventory(board)
+    move, info, best_guess = match_moves_to_position(
+        board,
+        detected,
+        filter_moves_by_inventory(board),
+        min_agreement=min_agreement,
+        margin=margin,
     )
     if move is None:
         print(f"  Model could not decide: {info}")
-        if outside:
-            print(f"  ({outside} Detections outside the board)")
+        if outside or collisions:
+            print(f"  ({outside} outside, {collisions} collisions)")
+        if best_guess is not None:
+            board.push(best_guess)
+            mismatches = compare_position(board, detected)
+            board.pop()
+            print(
+                f"  Bester Kandidat {best_guess.uci()}: {describe_mismatches(mismatches)}"
+            )
         return None
 
     print(f"  Modell sagt {move.uci()} ({info})")
@@ -203,7 +214,6 @@ def describe_mismatches(mismatches, limit=8):
 
 
 def match_moves_to_position(board, detected, moves, min_agreement=58, margin=2):
-    # compare the expected position after each move with the detected position
     scored = []
     for move in moves:
         board.push(move)
@@ -216,18 +226,18 @@ def match_moves_to_position(board, detected, moves, min_agreement=58, margin=2):
         scored.append((agreement, move))
 
     if not scored:
-        return None, "no legal moves to compare"
+        return None, "no legal moves to compare", None
 
     scored.sort(key=lambda entry: -entry[0])
     best_agreement, best_move = scored[0]
     second_agreement = scored[1][0] if len(scored) > 1 else -1
 
     if best_agreement < min_agreement:
-        return None, f"No best move found ({best_agreement}/64)"
+        return None, f"No best move found ({best_agreement}/64)", best_move
     if best_agreement - second_agreement < margin:
-        return None, f"ambiguous ({best_agreement} to {second_agreement})"
+        return None, f"ambiguous ({best_agreement} to {second_agreement})", best_move
 
-    return best_move, f"{best_agreement}/64 Felder"
+    return best_move, f"{best_agreement}/64 Felder", best_move
 
 
 def get_manual_move(board):

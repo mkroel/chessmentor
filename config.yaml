@@ -32,6 +32,9 @@ detector:
   imgsz: 1280
   drift_check_every: 5         # check for drift every N frames
 
+model_min_agreement: 54  # Standard: 58
+model_margin: 1  # Standard: 2
+
 # Chessboard detection
 max_active_fields: 10   # maximum number of active fields
 active_field_threshold: 5.0
