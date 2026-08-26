@@ -15,7 +15,7 @@ from chessmentor.board import grid_points, homography, rotate_corners
 from chessmentor.camera import configure_camera, get_corners, pick_corners
 from chessmentor.detect import Detector
 from chessmentor.engine import get_best_move
-from chessmentor.game import check_against_image, detect_played_move
+from chessmentor.game import check_against_image, detect_played_move, get_manual_move
 from chessmentor.render import (
     draw_arrow,
     draw_grid,
@@ -174,7 +174,38 @@ def game_phase(
                 last_view = current_view.copy()
                 view_stack.clear()
                 print("Corners updated successfully.")
-        # space for game logic, move detection, etc.
+
+        elif key == ord("i"):
+            # manual move input
+            if board.is_game_over():
+                print("Game is already over (checkmate/stalemate).")
+                continue
+
+            turn = board.ply() + 1
+            manual_move = get_manual_move(board)
+            if manual_move is None:
+                continue
+
+            if is_engine_turn and manual_move != suggestion:
+                print(
+                    f"Wrong piece moved! Please execute engine move {suggestion.uci()}."
+                )
+
+            view_stack.append(prev_board_view)
+            board.push(manual_move)
+            print(f"Turn {turn}: Manual move entered: {manual_move.uci()}")
+            print(f"Turn {turn}: Board FEN: {board.board_fen()}")
+
+            visu_path = update_browser_view(board, turn, best_score)
+            if not browser_opened:
+                webbrowser.open(visu_path.resolve().as_uri())
+                browser_opened = True
+
+            prev_board_view = current_view.copy()
+            suggestion = None
+            best_score = None
+
+        # space for main game logic, move detection, etc.
         elif key == ord(" ") or (
             still_since == config["still_frames_required"] and turn > 0
         ):

@@ -228,3 +228,19 @@ def match_moves_to_position(board, detected, moves, min_agreement=58, margin=2):
         return None, f"ambiguous ({best_agreement} to {second_agreement})"
 
     return best_move, f"{best_agreement}/64 Felder"
+
+
+def get_manual_move(board):
+    move_input = input("Manual move (z.B. e2e4, e7e8q): ")
+    if not move_input:
+        return None
+    try:
+        move = chess.Move.from_uci(move_input.strip())
+    except ValueError:
+        print(f"Not a valid move: {move_input}")
+        return None
+
+    if move not in board.legal_moves:
+        print(f"Move {move.uci()} is not legal in this position")
+        return None
+    return move
