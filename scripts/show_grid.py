@@ -5,8 +5,7 @@ import numpy as np
 import yaml
 
 from chessmentor.board import grid_points, homography
-from chessmentor.camera import configure_camera, get_frame
-from chessmentor.corners import get_corners
+from chessmentor.camera import configure_camera, get_corners, get_frame
 
 GRID_COLOR = (0, 255, 0)
 

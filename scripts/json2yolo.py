@@ -18,7 +18,7 @@ import numpy as np
 import yaml
 
 from chessmentor.board import field_corners_px, field_to_px, homography
-from chessmentor.pieces import NAMES, class_id
+from chessmentor.detect import NAMES, class_id
 
 DEFAULT_SOURCES = [Path("data/capture")]
 DEST_PATH = Path("data/yolo")

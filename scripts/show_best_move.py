@@ -5,8 +5,7 @@ import cv2 as cv
 import yaml
 
 from chessmentor.board import grid_points, homography
-from chessmentor.camera import configure_camera
-from chessmentor.corners import get_corners
+from chessmentor.camera import configure_camera, get_corners
 from chessmentor.engine import get_best_move
 from chessmentor.render import draw_arrow, draw_grid
 
